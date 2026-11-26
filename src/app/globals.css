@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #F2F5FA;
+  --foreground: #101B36;
+  --card: #FFFFFF;
+  --card-foreground: #101B36;
+  --popover: #FFFFFF;
+  --popover-foreground: #101B36;
+  
+  --primary-navy: #101B36;
+  --primary-navy-dark: #0A1122;
+  --primary-navy-light: #1A284D;
+  
+  --primary-blue: #315BEA;
+  --primary-blue-hover: #2348C9;
+  --primary-blue-light: #EEF2FF;
+  
+  --success-green: #16A37B;
+  --success-green-hover: #128262;
+  --success-green-light: #EBF8F4;
+  
+  --border: #E2E8F0;
+  --border-subtle: #EBEFF5;
+  --input: #E2E8F0;
+  --ring: #315BEA;
+  
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #EEF2FF;
+  --accent-foreground: #315BEA;
+  
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #0B1120;
+  --foreground: #F8FAFC;
+  --card: #101B36;
+  --card-foreground: #F8FAFC;
+  --popover: #101B36;
+  --popover-foreground: #F8FAFC;
+  
+  --primary-navy: #0A1122;
+  --primary-navy-dark: #060B16;
+  --primary-navy-light: #162447;
+  
+  --primary-blue: #3B82F6;
+  --primary-blue-hover: #2563EB;
+  --primary-blue-light: #1E293B;
+  
+  --success-green: #16A37B;
+  --success-green-hover: #10B981;
+  --success-green-light: #064E3B;
+  
+  --border: #1E293B;
+  --border-subtle: #192338;
+  --input: #1E293B;
+  --ring: #3B82F6;
+  
+  --muted: #152243;
+  --muted-foreground: #94A3B8;
+  --accent: #19254B;
+  --accent-foreground: #60A5FA;
+}
+
+@theme {
+  --color-primary-navy: var(--primary-navy);
+  --color-primary-navy-dark: var(--primary-navy-dark);
+  --color-primary-navy-light: var(--primary-navy-light);
+  
+  --color-primary-blue: var(--primary-blue);
+  --color-primary-blue-hover: var(--primary-blue-hover);
+  --color-primary-blue-light: var(--primary-blue-light);
+  
+  --color-success-green: var(--success-green);
+  --color-success-green-hover: var(--success-green-hover);
+  --color-success-green-light: var(--success-green-light);
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom scrollbars for clean academic UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* Subtle glow and pulse effects */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes wave-pulse {
+  0%, 100% { height: 12px; }
+  50% { height: 36px; }
+}
+
+.animate-wave-bar {
+  animation: wave-pulse 1.2s ease-in-out infinite;
+}

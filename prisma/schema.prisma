@@ -1,0 +1,753 @@
+// Academic Interview Pro - Database Architecture (Prisma & Supabase PostgreSQL)
+// Comprehensive Schema for Pakistan Computer Science Lecturer Selection Board Aspirants
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// 1. PROFILES & USER AUTHENTICATION
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id                  String   @id // Maps directly to Supabase Auth UUID (auth.users.id)
+  fullName            String   @map("full_name")
+  email               String   @unique
+  phone               String?
+  cnic                String?
+  city                String?
+  domicileProvince    String   @default("Punjab") @map("domicile_province")
+  highestDegree       String   @default("BS Computer Science") @map("highest_degree")
+  university          String?
+  cgpa                Decimal? @db.Decimal(3, 2)
+  graduationYear      Int?     @map("graduation_year")
+  thesisTopic         String?  @map("thesis_topic")
+  targetCommission    String   @default("PPSC") @map("target_commission") // PPSC, FPSC, SPSC, KPPSC, BPSC, HEC
+  experienceYears     String?  @map("experience_years")
+  bio                 String?  @db.Text
+  avatarUrl           String?  @map("avatar_url")
+  cvUrl               String?  @map("cv_url")
+  readinessScore      Int      @default(0) @map("readiness_score")
+  streakDays          Int      @default(1) @map("streak_days")
+  lastActiveAt        DateTime @default(now()) @map("last_active_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  userRoles           UserRole[]
+  bookmarks           Bookmark[]
+  testAttempts        TestAttempt[]
+  interviewSessions   InterviewSession[]
+  voiceSessions       VoiceSession[]
+  subscriptions       Subscription[]
+  usageRecords        UsageRecord[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  questionReviews     QuestionReview[]
+  codeSubmissions     CodeSubmission[]
+  teachingDemos       TeachingDemoSession[]
+  transactions        Transaction[]
+
+  @@index([email])
+  @@index([targetCommission])
+  @@map("profiles")
+}
+
+// ---------------------------------------------------------------------------
+// 2. ROLES & PERMISSIONS
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // "candidate", "admin", "reviewer"
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// ---------------------------------------------------------------------------
+// 3. CS CURRICULUM, SUBJECTS & TOPICS
+// ---------------------------------------------------------------------------
+
+model Subject {
+  id                  String   @id @default(uuid())
+  slug                String   @unique
+  code                String   @unique // CS-401, CS-402, etc.
+  title               String
+  description         String?  @db.Text
+  category            String   @default("CORE_CS") // "CORE_CS", "SUPPLEMENTARY"
+  weightage           String   @default("10-15%")
+  frequency           String   @default("HIGH") // "CRITICAL", "HIGH", "MEDIUM"
+  iconName            String   @default("BookOpen") @map("icon_name")
+  recommendedBooks    String[] @default([]) @map("recommended_books")
+  displayOrder        Int      @default(0) @map("display_order")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  topics              Topic[]
+  questions           Question[]
+  studyMaterials      StudyMaterial[]
+  curriculumMappings  CurriculumMapping[]
+  interviewSessions   InterviewSession[]
+
+  @@map("subjects")
+}
+
+model Topic {
+  id           String   @id @default(uuid())
+  subjectId    String   @map("subject_id")
+  name         String
+  slug         String
+  description  String?  @db.Text
+  difficulty   String   @default("MEDIUM") // "EASY", "MEDIUM", "HARD", "EXPERT"
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  subject            Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions          Question[]
+  curriculumMappings CurriculumMapping[]
+
+  @@unique([subjectId, slug])
+  @@map("topics")
+}
+
+model CurriculumVersion {
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g. "HEC-2023", "PPSC-2026-HED"
+  title       String
+  commission  String   // "PPSC", "FPSC", "SPSC", "KPPSC", "BPSC", "HEC"
+  year        Int      @default(2026)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  mappings    CurriculumMapping[]
+
+  @@map("curriculum_versions")
+}
+
+model CurriculumMapping {
+  id                  String   @id @default(uuid())
+  curriculumVersionId String   @map("curriculum_version_id")
+  subjectId           String   @map("subject_id")
+  topicId             String?  @map("topic_id")
+  weightagePercentage Decimal  @db.Decimal(5, 2) @map("weightage_percentage")
+  marksAllotted       Int      @default(10) @map("marks_allotted")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  curriculumVersion CurriculumVersion @relation(fields: [curriculumVersionId], references: [id], onDelete: Cascade)
+  subject           Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topic             Topic?            @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@map("curriculum_mappings")
+}
+
+// ---------------------------------------------------------------------------
+// 4. QUESTION BANK & REVIEW PIPELINE
+// ---------------------------------------------------------------------------
+
+model Question {
+  id          String   @id @default(uuid())
+  subjectId   String   @map("subject_id")
+  topicId     String?  @map("topic_id")
+  statement   String   @db.Text
+  type        String   @default("MCQ") // "MCQ", "SHORT", "LONG", "CONCEPTUAL", "SCENARIO"
+  difficulty  String   @default("MEDIUM") // "EASY", "MEDIUM", "HARD", "EXPERT"
+  origin      String   @default("VERIFIED") // "VERIFIED", "AI_GENERATED"
+  status      String   @default("PENDING_REVIEW") // "DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED"
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subject     Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topic       Topic?           @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  options     QuestionOption[]
+  answer      QuestionAnswer?
+  sources     QuestionSource[]
+  reviews     QuestionReview[]
+  bookmarks   Bookmark[]
+  testResponses TestResponse[]
+
+  @@index([subjectId])
+  @@index([topicId])
+  @@index([status])
+  @@index([difficulty])
+  @@index([type])
+  @@index([origin])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id          String   @id @default(uuid())
+  questionId  String   @map("question_id")
+  optionKey   String   @map("option_key") // "A", "B", "C", "D"
+  statement   String   @db.Text
+  isCorrect   Boolean  @default(false) @map("is_correct")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  testResponses TestResponse[]
+
+  @@unique([questionId, optionKey])
+  @@map("question_options")
+}
+
+model QuestionAnswer {
+  id                  String   @id @default(uuid())
+  questionId          String   @unique @map("question_id")
+  detailedExplanation String   @db.Text @map("detailed_explanation")
+  keyPoints           String[] @default([]) @map("key_points")
+  referenceCitation   String?  @map("reference_citation")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_answers")
+}
+
+model QuestionSource {
+  id          String   @id @default(uuid())
+  questionId  String   @map("question_id")
+  sourceName  String   @map("source_name") // "PPSC CS Lecturer 2022", "FPSC Lecturer 2021"
+  examYear    Int?     @map("exam_year")
+  postTitle   String?  @map("post_title")
+  bookTitle   String?  @map("book_title")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_sources")
+}
+
+model QuestionReview {
+  id          String   @id @default(uuid())
+  questionId  String   @map("question_id")
+  reviewerId  String   @map("reviewer_id")
+  status      String   @default("APPROVED") // "APPROVED", "REJECTED", "FLAGGED"
+  comments    String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviewer Profile  @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@map("question_reviews")
+}
+
+// ---------------------------------------------------------------------------
+// 5. STUDY MATERIALS & BOOKMARKS
+// ---------------------------------------------------------------------------
+
+model StudyMaterial {
+  id          String   @id @default(uuid())
+  subjectId   String?  @map("subject_id")
+  title       String
+  category    String   // "PAST_PAPER", "CURRICULUM", "FORMULA_SHEET", "VIVA_HANDBOOK"
+  commission  String   @default("ALL") // "PPSC", "FPSC", "SPSC", "KPPSC", "BPSC", "ALL"
+  year        String?
+  fileUrl     String   @map("file_url")
+  fileSize    String   @default("2.5 MB") @map("file_size")
+  format      String   @default("PDF")
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subject   Subject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  bookmarks Bookmark[]
+
+  @@map("study_materials")
+}
+
+model Bookmark {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  questionId      String?  @map("question_id")
+  studyMaterialId String?  @map("study_material_id")
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user          Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question      Question?      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  studyMaterial StudyMaterial? @relation(fields: [studyMaterialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@unique([userId, studyMaterialId])
+  @@map("bookmarks")
+}
+
+// ---------------------------------------------------------------------------
+// 6. MOCK TESTS & SCREENING EXAMINATIONS
+// ---------------------------------------------------------------------------
+
+model TestTemplate {
+  id                  String   @id @default(uuid())
+  title               String
+  slug                String   @unique
+  commission          String   @default("PPSC") // "PPSC", "FPSC", "SPSC", "KPPSC", "CUSTOM", "PRACTICE"
+  type                String   @default("MOCK") // "MOCK", "PRACTICE"
+  questionCount       Int      @default(100) @map("question_count")
+  durationMinutes     Int      @default(90) @map("duration_minutes")
+  totalMarks          Int      @default(100) @map("total_marks")
+  negativeMarkingRate Decimal  @default(0.25) @db.Decimal(3, 2) @map("negative_marking_rate")
+  subjectRatioJson    Json?    @map("subject_ratio_json")
+  difficultyRatioJson Json?    @map("difficulty_ratio_json")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  attempts            TestAttempt[]
+
+  @@map("test_templates")
+}
+
+model TestAttempt {
+  id                  String    @id @default(uuid())
+  userId              String    @map("user_id")
+  templateId          String    @map("template_id")
+  startedAt           DateTime  @default(now()) @map("started_at")
+  completedAt         DateTime? @map("completed_at")
+  status              String    @default("IN_PROGRESS") // "IN_PROGRESS", "SUBMITTED", "TIMED_OUT"
+  rawScore            Decimal   @default(0) @db.Decimal(5, 2) @map("raw_score")
+  negativeDeductions  Decimal   @default(0) @db.Decimal(5, 2) @map("negative_deductions")
+  finalScore          Decimal   @default(0) @db.Decimal(5, 2) @map("final_score")
+  percentage          Decimal   @default(0) @db.Decimal(5, 2)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  user       Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template   TestTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  responses  TestResponse[]
+  result     TestResult?
+
+  @@index([userId])
+  @@map("test_attempts")
+}
+
+model TestResponse {
+  id               String   @id @default(uuid())
+  attemptId        String   @map("attempt_id")
+  questionId       String   @map("question_id")
+  selectedOptionId String?  @map("selected_option_id")
+  selectedKey      String?  @map("selected_key") // "A", "B", "C", "D"
+  isCorrect        Boolean  @default(false) @map("is_correct")
+  timeSpentSeconds Int      @default(0) @map("time_spent_seconds")
+  isFlagged        Boolean  @default(false) @map("is_flagged")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  attempt  TestAttempt     @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  option   QuestionOption? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+
+  @@unique([attemptId, questionId])
+  @@map("test_responses")
+}
+
+model TestResult {
+  id                   String   @id @default(uuid())
+  attemptId            String   @unique @map("attempt_id")
+  totalQuestions       Int      @default(100) @map("total_questions")
+  answeredCount        Int      @default(0) @map("answered_count")
+  correctCount         Int      @default(0) @map("correct_count")
+  incorrectCount       Int      @default(0) @map("incorrect_count")
+  unattemptedCount     Int      @default(0) @map("unattempted_count")
+  accuracyPercentage   Decimal  @default(0) @db.Decimal(5, 2) @map("accuracy_percentage")
+  percentileRank       Decimal? @db.Decimal(5, 2) @map("percentile_rank")
+  subjectBreakdownJson Json?    @map("subject_breakdown_json")
+  weakTopicsJson       Json?    @map("weak_topics_json")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  attempt TestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@map("test_results")
+}
+
+// ---------------------------------------------------------------------------
+// 7. SELECTION BOARD VIVA SIMULATION
+// ---------------------------------------------------------------------------
+
+model InterviewSession {
+  id                  String   @id @default(uuid())
+  userId              String   @map("user_id")
+  subjectId           String?  @map("subject_id")
+  interviewType       String   @default("TECHNICAL_CS") @map("interview_type") // "TECHNICAL_CS", "SUBJECT_SPECIFIC", "ACADEMIC", "HR", "SELECTION_COMMITTEE"
+  personality         String   @default("SENIOR_PROFESSOR") // "SENIOR_PROFESSOR", "ASSISTANT_PROFESSOR", "TECHNICAL_EXPERT", "SELECTION_COMMITTEE", "HR_INTERVIEWER"
+  difficulty          String   @default("MEDIUM") // "EASY", "MEDIUM", "HARD", "EXPERT"
+  targetQuestionCount Int      @default(5) @map("target_question_count")
+  topicTitle          String?  @map("topic_title")
+  mode                String   @default("FULL_BOARD") // "FULL_BOARD", "SUBJECT_SPECIALIST", "PEDAGOGY", "CHAIRMAN"
+  status              String   @default("ACTIVE") // "ACTIVE", "COMPLETED"
+  durationSeconds     Int      @default(0) @map("duration_seconds")
+  overallScore        Int?     @map("overall_score")
+  verdict             String?  // "STRONGLY_RECOMMENDED", "RECOMMENDED", "BORDERLINE", "NOT_RECOMMENDED"
+  reportJson          Json?    @map("report_json")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user      Profile             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   Subject?            @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  questions InterviewQuestion[]
+
+  @@map("interview_sessions")
+}
+
+model InterviewQuestion {
+  id               String   @id @default(uuid())
+  sessionId        String   @map("session_id")
+  panelistName     String   @map("panelist_name")
+  panelistRole     String   @map("panelist_role")
+  questionText     String   @db.Text @map("question_text")
+  expectedKeywords String[] @default([]) @map("expected_keywords")
+  orderIndex       Int      @default(0) @map("order_index")
+  isFollowUp       Boolean  @default(false) @map("is_follow_up")
+  difficulty       String   @default("MEDIUM")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  session   InterviewSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  responses InterviewResponse[]
+
+  @@map("interview_questions")
+}
+
+model InterviewResponse {
+  id                  String   @id @default(uuid())
+  interviewQuestionId String   @map("interview_question_id")
+  transcriptText      String   @db.Text @map("transcript_text")
+  audioUrl            String?  @map("audio_url")
+  durationSeconds     Int      @default(0) @map("duration_seconds")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  question   InterviewQuestion    @relation(fields: [interviewQuestionId], references: [id], onDelete: Cascade)
+  evaluation InterviewEvaluation?
+
+  @@map("interview_responses")
+}
+
+model InterviewEvaluation {
+  id                   String   @id @default(uuid())
+  interviewResponseId  String   @unique @map("interview_response_id")
+  technicalAccuracy    Int      @default(0) @map("technical_accuracy") // 40%
+  conceptualDepth      Int      @default(0) @map("conceptual_depth") // 25%
+  communication        Int      @default(0) // 15%
+  answerStructure      Int      @default(0) @map("answer_structure") // 10%
+  problemSolving       Int      @default(0) @map("problem_solving") // 10%
+  weightedScore        Decimal? @db.Decimal(5, 2) @map("weighted_score")
+  pedagogicalClarity   Int      @default(0) @map("pedagogical_clarity")
+  fluencyScore         Int      @default(0) @map("fluency_score")
+  verdict              String   @default("RECOMMENDED")
+  critique             String   @db.Text
+  technicalMistakes    String[] @default([]) @map("technical_mistakes")
+  missingConcepts      String[] @default([]) @map("missing_concepts")
+  modelAnswer          String?  @db.Text @map("model_answer")
+  studyRecommendations String[] @default([]) @map("study_recommendations")
+  followUpQuestion     String?  @db.Text @map("follow_up_question")
+  evaluationJson       Json?    @map("evaluation_json")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  response InterviewResponse @relation(fields: [interviewResponseId], references: [id], onDelete: Cascade)
+
+  @@map("interview_evaluations")
+}
+
+// ---------------------------------------------------------------------------
+// 8. ENGLISH VOICE & SPOKEN COMMUNICATION LAB
+// ---------------------------------------------------------------------------
+
+model VoiceSession {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  topicTitle       String   @map("topic_title")
+  mode             String   @default("TURN_BASED") // "TURN_BASED", "REALTIME"
+  scenarioKey      String   @default("GENERAL_CONVERSATION") @map("scenario_key")
+  status           String   @default("ACTIVE") // "ACTIVE", "COMPLETED", "TERMINATED"
+  durationSeconds  Int      @default(0) @map("duration_seconds")
+  overallScore     Int?     @map("overall_score")
+  languageMode     String   @default("EN") @map("language_mode") // "EN", "EN_WITH_URDU_EXPLANATIONS"
+  targetCadenceMin Int      @default(120) @map("target_cadence_min")
+  targetCadenceMax Int      @default(140) @map("target_cadence_max")
+  reportJson       Json?    @map("report_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user     Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages VoiceMessage[]
+
+  @@map("voice_sessions")
+}
+
+model VoiceMessage {
+  id              String   @id @default(uuid())
+  voiceSessionId  String   @map("voice_session_id")
+  sender          String   @default("CANDIDATE") // "CANDIDATE", "AI_EXAMINER"
+  orderIndex      Int      @default(0) @map("order_index")
+  audioUrl        String?  @map("audio_url")
+  transcriptText  String   @db.Text @map("transcript_text")
+  wpm             Int      @default(130)
+  durationSeconds Int      @default(0) @map("duration_seconds")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  session    VoiceSession     @relation(fields: [voiceSessionId], references: [id], onDelete: Cascade)
+  evaluation VoiceEvaluation?
+
+  @@map("voice_messages")
+}
+
+model VoiceEvaluation {
+  id                     String   @id @default(uuid())
+  voiceMessageId         String   @unique @map("voice_message_id")
+  wordsPerMinute         Int      @default(130) @map("words_per_minute")
+  fillerWordCount        Int      @default(0) @map("filler_word_count")
+  fillerWordsJson        Json?    @map("filler_words_json")
+  pronunciationScore     Int      @default(90) @map("pronunciation_score")
+  academicToneScore      Int      @default(90) @map("academic_tone_score")
+  grammarScore           Int      @default(85) @map("grammar_score")
+  fluencyScore           Int      @default(85) @map("fluency_score")
+  vocabularyScore        Int      @default(85) @map("vocabulary_score")
+  clarityScore           Int      @default(85) @map("clarity_score")
+  relevanceScore         Int      @default(85) @map("relevance_score")
+  correctedText          String?  @db.Text @map("corrected_text")
+  grammarExplanation     String?  @db.Text @map("grammar_explanation")
+  urduExplanation        String?  @db.Text @map("urdu_explanation")
+  vocabularyUpgradesJson Json?    @map("vocabulary_upgrades_json")
+  suggestedPractice      String?  @db.Text @map("suggested_practice")
+  feedbackText           String?  @db.Text @map("feedback_text")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  message VoiceMessage @relation(fields: [voiceMessageId], references: [id], onDelete: Cascade)
+
+  @@map("voice_evaluations")
+}
+
+// ---------------------------------------------------------------------------
+// 9. PLANS, SUBSCRIPTIONS & USAGE LIMITS
+// ---------------------------------------------------------------------------
+
+model Plan {
+  id              String   @id @default(uuid())
+  code            String   @unique // "FREE", "LECTURER_PRO", "COMMISSION_MASTER"
+  name            String
+  priceMonthlyPKR Int      @default(0) @map("price_monthly_pkr")
+  priceYearlyPKR  Int      @default(0) @map("price_yearly_pkr")
+  pricePKR        Int      @default(0) @map("price_pkr") // Backwards compatibility
+  billingInterval String   @default("MONTHLY") @map("billing_interval") // "MONTHLY", "SEASONAL", "LIFETIME"
+  description     String?  @db.Text
+  featuresJson    Json?    @map("features_json")
+  limitsJson      Json?    @map("limits_json")
+  isPopular       Boolean  @default(false) @map("is_popular")
+  displayOrder    Int      @default(0) @map("display_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  subscriptions   Subscription[]
+  transactions    Transaction[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  planId             String    @map("plan_id")
+  status             String    @default("ACTIVE") // "ACTIVE", "EXPIRED", "CANCELLED", "PAST_DUE"
+  billingCycle       String    @default("MONTHLY") @map("billing_cycle") // "MONTHLY", "YEARLY"
+  startedAt          DateTime  @default(now()) @map("started_at")
+  expiresAt          DateTime? @map("expires_at")
+  paymentMethod      String?   @map("payment_method") // "JAZZCASH", "EASYPAISA", "BANK_TRANSFER", "CARD", "SAFEPAY", "PAYFAST", "MOCK"
+  transactionRef     String?   @map("transaction_ref")
+  amountPaidPKR      Int       @default(0) @map("amount_paid_pkr")
+  autoRenew          Boolean   @default(true) @map("auto_renew")
+  cancelledAt        DateTime? @map("cancelled_at")
+  cancellationReason String?   @map("cancellation_reason")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  user         Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan          @relation(fields: [planId], references: [id], onDelete: Restrict)
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model Transaction {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  planId          String?   @map("plan_id")
+  subscriptionId  String?   @map("subscription_id")
+  orderRef        String    @unique @map("order_ref")
+  gateway         String    // "JAZZCASH", "EASYPAISA", "SAFEPAY", "PAYFAST", "STRIPE", "MOCK"
+  gatewayTxnId    String?   @map("gateway_txn_id")
+  amountPKR       Int       @map("amount_pkr")
+  currency        String    @default("PKR")
+  billingCycle    String    @default("MONTHLY") @map("billing_cycle")
+  status          String    @default("PENDING") // "PENDING", "SUCCESS", "FAILED", "CANCELLED", "REFUNDED"
+  paymentMethod   String?   @map("payment_method") // "WALLET", "CARD", "DIRECT_DEBIT", "OTC"
+  customerPhone   String?   @map("customer_phone")
+  customerEmail   String?   @map("customer_email")
+  rawRequestJson  Json?     @map("raw_request_json")
+  rawResponseJson Json?     @map("raw_response_json")
+  errorMessage    String?   @map("error_message")
+  paidAt          DateTime? @map("paid_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user         Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([orderRef])
+  @@index([status])
+  @@map("transactions")
+}
+
+model UsageRecord {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  metricKey String   @map("metric_key") // "mcq_attempted", "viva_simulated", "mock_taken"
+  count     Int      @default(1)
+  date      DateTime @default(now()) @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metricKey, date])
+  @@map("usage_records")
+}
+
+// ---------------------------------------------------------------------------
+// 10. NOTIFICATIONS & SECURITY AUDIT LOGS
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  body      String   @db.Text
+  type      String   @default("SYSTEM") // "EXAM_ALERT", "TEST_RESULT", "SUBSCRIPTION", "SYSTEM"
+  isRead    Boolean  @default(false) @map("is_read")
+  link      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String?  @map("actor_id")
+  action       String   // e.g. "USER_REGISTERED", "ROLE_ASSIGNED", "TEST_SUBMITTED", "PLAN_UPGRADED"
+  entityType   String   @map("entity_type") // "Profile", "TestAttempt", "Subscription"
+  entityId     String?  @map("entity_id")
+  ipAddress    String?  @map("ip_address")
+  metadataJson Json?    @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actor Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// 11. PROGRAMMING LAB & CODING CHALLENGES
+// ---------------------------------------------------------------------------
+
+model CodingProblem {
+  id                      String           @id @default(uuid())
+  slug                    String           @unique
+  title                   String
+  difficulty              String           @default("MEDIUM") // "EASY", "MEDIUM", "HARD", "EXPERT"
+  category                String           @default("ALGORITHMS") // "DATA_STRUCTURES", "ALGORITHMS", "SYSTEMS", "OOP", "DYNAMIC_PROGRAMMING"
+  description             String           @db.Text
+  constraints             String           @db.Text
+  sampleInput             String           @db.Text @map("sample_input")
+  sampleOutput            String           @db.Text @map("sample_output")
+  hiddenTestCasesJson     Json?            @map("hidden_test_cases_json")
+  starterCodeJson         Json?            @map("starter_code_json")
+  expectedTimeComplexity  String           @default("O(N)") @map("expected_time_complexity")
+  expectedSpaceComplexity String           @default("O(1)") @map("expected_space_complexity")
+  academicSignificance    String?          @db.Text @map("academic_significance")
+  displayOrder            Int              @default(0) @map("display_order")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+
+  submissions             CodeSubmission[]
+
+  @@map("coding_problems")
+}
+
+model CodeSubmission {
+  id                   String        @id @default(uuid())
+  userId               String        @map("user_id")
+  problemId            String        @map("problem_id")
+  language             String        // "cpp", "java", "python", "javascript"
+  code                 String        @db.Text
+  status               String        @default("ACCEPTED") // "ACCEPTED", "WRONG_ANSWER", "TIME_LIMIT_EXCEEDED", "COMPILE_ERROR", "RUNTIME_ERROR"
+  passedTests          Int           @default(0) @map("passed_tests")
+  totalTests           Int           @default(0) @map("total_tests")
+  executionTimeMs      Int           @default(0) @map("execution_time_ms")
+  memoryKb             Int           @default(0) @map("memory_kb")
+  aiExplanation        String?       @db.Text @map("ai_explanation")
+  timeComplexityFound  String?       @map("time_complexity_found")
+  spaceComplexityFound String?       @map("space_complexity_found")
+  testResultsJson      Json?         @map("test_results_json")
+  createdAt            DateTime      @default(now()) @map("created_at")
+
+  user                 Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem              CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([problemId])
+  @@map("code_submissions")
+}
+
+// ---------------------------------------------------------------------------
+// 12. TEACHING DEMONSTRATION PRACTICE
+// ---------------------------------------------------------------------------
+
+model TeachingDemoSession {
+  id                  String   @id @default(uuid())
+  userId              String   @map("user_id")
+  subjectTitle        String   @map("subject_title")
+  topicTitle          String   @map("topic_title")
+  durationMinutes     Int      @default(5) @map("duration_minutes")
+  teachingLanguage    String   @default("EN") @map("teaching_language") // "EN", "URDU", "BILINGUAL"
+  recordingType       String   @default("AUDIO") @map("recording_type") // "AUDIO", "VIDEO", "TRANSCRIPT_UPLOAD"
+  mediaUrl            String?  @map("media_url")
+  transcriptText      String   @db.Text @map("transcript_text")
+  status              String   @default("ACTIVE") // "ACTIVE", "COMPLETED"
+  overallScore        Int?     @map("overall_score")
+  rubricBreakdownJson Json?    @map("rubric_breakdown_json")
+  feedbackJson        Json?    @map("feedback_json")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user                Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("teaching_demo_sessions")
+}
