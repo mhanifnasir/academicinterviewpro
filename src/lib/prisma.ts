@@ -7,20 +7,52 @@ const globalForPrisma = globalThis as unknown as {
   pool: Pool | undefined;
 };
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres:postgres@localhost:5432/academic_interview_pro";
+function createPrismaClient(): PrismaClient {
+  const connectionString = process.env.DATABASE_URL;
 
-const pool = globalForPrisma.pool ?? new Pool({ connectionString });
-if (process.env.NODE_ENV !== "production") globalForPrisma.pool = pool;
+  if (!connectionString) {
+    // No database configured — return a client that will fail gracefully
+    // at the point of use. Each API route already wraps prisma calls in try/catch
+    // and falls back to in-memory data, so this is safe.
+    console.warn(
+      "[Prisma] DATABASE_URL is not set. Database features will be unavailable."
+    );
+    // We still need a valid adapter; use a dummy URL that will fail at query time
+    const pool = new Pool({
+      connectionString:
+        "postgresql://noop:noop@localhost:5432/noop?connect_timeout=1",
+      connectionTimeoutMillis: 1000,
+      max: 1,
+    });
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({
+      adapter,
+      log: ["error"],
+    });
+  }
 
-const adapter = new PrismaPg(pool);
+  const pool =
+    globalForPrisma.pool ??
+    new Pool({
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.pool = pool;
+  }
+
+  const adapter = new PrismaPg(pool);
+  return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
